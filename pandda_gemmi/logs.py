@@ -129,7 +129,12 @@ def dump_datasets_bfactor(datasets: Dataset):
         print('          dtag, smoothing_factor =',dtag.dtag,dataset.smoothing_factor)
 
 def pandda_note(s):
-    print('\n NOTE: %s\n' % s)
+    print('\n\t NOTE: %s\n' % s)
 
 def pandda_warning(s):
-    print('\n WARNING: %s\n' % s)
+    print('\n\t WARNING: %s\n' % s)
+
+def report_removed_datasets(d_before: Dataset, d_after: Dataset):
+    for dtag in d_before:
+        if dtag not in d_after:
+            print('\tremoved = ',dtag.dtag)
