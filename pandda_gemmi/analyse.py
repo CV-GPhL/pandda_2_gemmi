@@ -222,12 +222,12 @@ def process_pandda(pandda_args: PanDDAArgs, ):
     distributed_tmp = Path(pandda_args.distributed_tmp)
 
     # Check dependencies
-    # with STDOUTManager('Checking dependencies...', '\tAll dependencies validated!'):
+    # with STDOUTManager('Checking dependencies ...', 'All dependencies validated!'):
     console.start_dependancy_check()
     check_dependencies(pandda_args)
 
     # Initialise log
-    # with STDOUTManager('Initialising log...', '\tPanDDA log initialised!'):
+    # with STDOUTManager('Initialising log ...', 'PanDDA log initialised!'):
     console.start_log()
     pandda_log: Dict = {}
     pandda_log[constants.LOG_START] = time.time()
@@ -236,7 +236,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
     pandda_log[constants.LOG_ARGUMENTS] = initial_args
 
     # Get global processor
-    # with STDOUTManager('Getting global processor...', '\tGot global processor!'):
+    # with STDOUTManager('Getting global processor ...', 'Got global processor!'):
     console.start_initialise_shell_processor()
     if pandda_args.global_processing == "serial":
         process_global = process_global_serial
@@ -262,7 +262,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
         raise Exception()
 
     # Get local processor
-    # with STDOUTManager('Getting local processor...', '\tGot local processor!'):
+    # with STDOUTManager('Getting local processor ...', 'Got local processor!'):
     console.start_initialise_multiprocessor()
     process_local = get_process_local(pandda_args)
 
@@ -280,7 +280,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
     # Set up autobuilding
     if pandda_args.autobuild:
 
-        # with STDOUTManager('Setting up autobuilding...', '\tSet up autobuilding!'):
+        # with STDOUTManager('Setting up autobuilding ...', 'Set up autobuilding!'):
         if pandda_args.autobuild_strategy == "rhofit":
 
             if pandda_args.local_processing == "ray":
@@ -304,8 +304,8 @@ def process_pandda(pandda_args: PanDDAArgs, ):
         # # Get datasets
         ###################################################################
 
-        # with STDOUTManager(f'Building model of file system in {pandda_args.data_dirs}...',
-        #                    '\tBuilt file system model!'):
+        # with STDOUTManager(f'Building model of file system in {pandda_args.data_dirs} ...',
+        #                    'Built file system model!'):
         console.start_fs_model()
         time_fs_model_building_start = time.time()
         pandda_fs_model: PanDDAFSModel = PanDDAFSModel.from_dir(
@@ -331,7 +331,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
         ###################################################################
 
         # Get datasets
-        # with STDOUTManager('Loading datasets...', f'\tLoaded datasets!'):
+        # with STDOUTManager('Loading datasets ...', 'Loaded datasets!'):
         console.start_load_datasets()
         datasets_initial: Datasets = Datasets.from_dir(pandda_fs_model, )
         dataset_statistics = DatasetStatistics(datasets_initial.datasets)
@@ -511,7 +511,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
 
         # Partition the Analysis into shells in which all datasets are being processed at a similar resolution for the
         # sake of computational efficiency
-        with STDOUTManager('Deciding on how to partition the datasets into resolution shells for processing...',
+        with STDOUTManager('Deciding on how to partition the datasets into resolution shells for processing ...',
                            'Done!'):
             if pandda_args.comparison_strategy == "cluster":
                 pandda_note("using comparison strategy = \"cluster\"")
