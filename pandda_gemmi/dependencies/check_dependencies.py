@@ -9,6 +9,7 @@ def check_dependencies(args: PanDDAArgs):
 
     # check autobuilding args
     if args.autobuild:
+        print('\tchecking auto-building dependencies')
         # Check autobuild_strategy
         if args.autobuild_strategy == 'rhofit':
             if shutil.which("ana_pdbmaps"):
