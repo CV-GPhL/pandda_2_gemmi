@@ -31,7 +31,7 @@ from pandda_gemmi.filters import remove_models_with_large_gaps
 from pandda_gemmi.comparators import get_multiple_comparator_sets, ComparatorCluster
 from pandda_gemmi.shells import get_shells_multiple_models
 from pandda_gemmi.logs import (
-    summarise_grid, save_json_log, summarise_datasets, dump_datasets, dump_datasets_bfactor, pandda_note, pandda_warning
+    summarise_grid, save_json_log, summarise_datasets, dump_datasets, pandda_note, pandda_warning, report_removed_datasets
 )
 
 from pandda_gemmi.pandda_functions import (
@@ -340,7 +340,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
             else:
                 structure_factors = StructureFactors(pandda_args.structure_factors[0], pandda_args.structure_factors[1])
 
-        printer.pprint(structure_factors)
+            print('\tf, phi =',structure_factors.f,structure_factors.phi)
 
         # Make dataset validator
         validation_strategy = partial(
@@ -363,15 +363,11 @@ def process_pandda(pandda_args: PanDDAArgs, ):
                 structure_factors)
             pandda_log[constants.LOG_INVALID] = [dtag.dtag for dtag in datasets_initial if dtag not in datasets_invalid]
             validate_parameterized(datasets_invalid, exception=Exception("Too few datasets after filter: invalid"))
-        for dtag in datasets_initial:
-            if dtag not in datasets_invalid:
-                print(f'\tremoved = ',dtag)
+            report_removed_datasets(datasets_initial,datasets_invalid)
 
         with STDOUTManager('Truncating MTZ columns to only those needed for PanDDA ...','Done!'):
             datasets_truncated_columns = datasets_invalid.drop_columns(structure_factors)
-        for dtag in datasets_invalid:
-            if dtag not in datasets_truncated_columns:
-                print(f'\tremoved = ',dtag)
+            report_removed_datasets(datasets_invalid,datasets_truncated_columns)
 
         with STDOUTManager('Removing datasets with poor low resolution completeness ...','Done!'):
             datasets_low_res: Datasets = datasets_truncated_columns.remove_low_resolution_datasets(
@@ -379,9 +375,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
             pandda_log[constants.LOG_LOW_RES] = [dtag.dtag for dtag in datasets_truncated_columns if
                                                  dtag not in datasets_low_res]
             validate_parameterized(datasets_low_res, exception=Exception("Too few datasets after filter: low res"))
-        for dtag in datasets_truncated_columns:
-            if dtag not in datasets_low_res:
-                print(f'\tremoved = ',dtag)
+            report_removed_datasets(datasets_truncated_columns,datasets_low_res)
 
         if pandda_args.max_rfree < 1:
             with STDOUTManager('Removing datasets with poor rfree ...','Done!'):
@@ -389,9 +383,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
                 pandda_log[constants.LOG_RFREE] = [dtag.dtag for dtag in datasets_low_res if
                                                    dtag not in datasets_rfree]
                 validate_parameterized(datasets_rfree, exception=Exception("Too few datasets after filter: rfree"))
-            for dtag in datasets_low_res:
-                if dtag not in datasets_rfree:
-                    print(f'\tremoved = ',dtag)
+                report_removed_datasets(datasets_low_res,datasets_rfree)
         else:
             datasets_rfree = datasets_low_res
 
@@ -399,14 +391,12 @@ def process_pandda(pandda_args: PanDDAArgs, ):
             datasets_wilson: Datasets = datasets_rfree.remove_bad_wilson(
                 pandda_args.max_wilson_plot_z_score)  # TODO
             validate_parameterized(datasets_wilson, exception=Exception("Too few datasets after filter: wilson"))
-        for dtag in datasets_rfree:
-            if dtag not in datasets_wilson:
-                print(f'\tremoved = ',dtag)
+            report_removed_datasets(datasets_rfree,datasets_wilson)
 
         # Select reference
         with STDOUTManager('Deciding on reference dataset ...','Done!'):
             reference: Reference = Reference.from_datasets(datasets_wilson)
-        pp.pprint(reference.dtag)
+            print('\treference dataset =',reference.dtag.dtag)
 
         # Post-reference filters
         with STDOUTManager('Performing b-factor smoothing ...','Done!'):
@@ -420,11 +410,6 @@ def process_pandda(pandda_args: PanDDAArgs, ):
             finish = time.time()
             pandda_log["Time to perform b factor smoothing"] = finish - start
 
-        # CV: how do we know something happened ... and what? I expect
-        # some kind of parameter (B-factor? Scale?) per dtag ...
-        #pp.pprint(datasets_smoother)
-        dump_datasets_bfactor(datasets_smoother)
-
         with STDOUTManager('Removing datasets with dissimilar models ...','Done!'):
             datasets_diss_struc: Datasets = datasets_smoother.remove_dissimilar_models(
                 reference,
@@ -432,10 +417,8 @@ def process_pandda(pandda_args: PanDDAArgs, ):
             )
             pandda_log[constants.LOG_DISSIMILAR_STRUCTURE] = [dtag.dtag for dtag in datasets_smoother if
                                                               dtag not in datasets_diss_struc]
+            report_removed_datasets(datasets_smoother,datasets_diss_struc)
             validate_parameterized(datasets_diss_struc, exception=Exception("Too few datasets after filter: structure"))
-        for dtag in datasets_smoother:
-            if dtag not in datasets_diss_struc:
-                print(f'\tremoved = ',dtag)
 
         with STDOUTManager('Removing datasets whose models have large gaps ...','Done!'):
             datasets_gaps: Datasets = remove_models_with_large_gaps(datasets_diss_struc, reference )
@@ -444,13 +427,12 @@ def process_pandda(pandda_args: PanDDAArgs, ):
                     print(f"WARNING: Removed dataset {dtag} due to a large gap")
             pandda_log[constants.LOG_GAPS] = [dtag.dtag for dtag in datasets_diss_struc if
                                               dtag not in datasets_gaps]
+            report_removed_datasets(datasets_diss_struc,datasets_gaps)
             validate_parameterized(datasets_gaps, exception=Exception("Too few datasets after filter: structure gaps"))
-        for dtag in datasets_diss_struc:
-            if dtag not in datasets_gaps:
-                print(f'\tremoved = ',dtag)
 
         with STDOUTManager('Removing datasets with dissimilar spacegroups to the reference ...','Done!'):
             datasets_diss_space: Datasets = datasets_gaps.remove_dissimilar_space_groups(reference)
+            report_removed_datasets(datasets_gaps,datasets_diss_space)
             pandda_log[constants.LOG_SG] = [dtag.dtag for dtag in datasets_gaps if
                                             dtag not in datasets_diss_space]
             validate_parameterized(datasets_diss_space,
@@ -458,9 +440,6 @@ def process_pandda(pandda_args: PanDDAArgs, ):
 
             datasets = {dtag: datasets_diss_space[dtag] for dtag in datasets_diss_space}
             pandda_log[constants.LOG_DATASETS] = summarise_datasets(datasets, pandda_fs_model)
-        for dtag in datasets_gaps:
-            if dtag not in datasets_diss_space:
-                print(f'\tremoved = ',dtag)
 
         if pandda_args.debug:
             print(pandda_log[constants.LOG_DATASETS])
@@ -769,7 +748,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
 
             update_log(pandda_log, pandda_args.out_dir / constants.PANDDA_LOG_FILE)
 
-        pp.print(all_events_ranked)
+        pp.pprint(all_events_ranked)
 
         ###################################################################
         # # Assign Sites
@@ -779,7 +758,7 @@ def process_pandda(pandda_args: PanDDAArgs, ):
         with STDOUTManager('Assigning sites to each event ...','Done!'):
             all_events_events = Events.from_all_events(all_events_ranked, grid, pandda_args.max_site_distance_cutoff)
 
-        pp.print(all_events_events)
+        pp.pprint(all_events_events)
 
         ###################################################################
         # # Output pandda summary information
