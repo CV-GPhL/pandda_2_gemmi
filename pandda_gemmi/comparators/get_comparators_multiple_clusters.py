@@ -19,8 +19,9 @@ from pandda_gemmi.plots import save_plot_pca_umap_bokeh, embed_umap, bokeh_scatt
 
 # from pandda_gemmi.pandda_functions import truncate, from_unaligned_dataset_c_flat
 
-
-
+def dd(datasets: Dataset):
+    for dtag in datasets:
+        print('          ',dtag.dtag)
 
 def truncate(datasets: Dict[Dtag, Dataset], resolution: Resolution, structure_factors: StructureFactors):
     new_datasets_resolution = {}
@@ -386,8 +387,8 @@ def get_multiple_comparator_sets(
     )
 
     highest_res_datasets = dtags_by_res[:comparison_min_comparators + 1]
-    print(f'\tHighest resolution dataset(s) =')
-    print(highest_res_datasets)
+    print('\n\tHighest resolution dataset(s) =')
+    dd(highest_res_datasets)
     highest_res_datasets_max = max(
         [
             datasets[dtag].reflections.resolution().resolution
@@ -395,14 +396,15 @@ def get_multiple_comparator_sets(
             in highest_res_datasets
         ]
     )
-    print(f'\tHighest resolution dataset(s) max = %.3f A' % highest_res_datasets_max)
+    print('\n\tHighest resolution dataset(s) max = %.3f A' % highest_res_datasets_max)
 
     # Get the datasets below the upper cutoff for manifold characterisation
     suitable_datasets_list = [
         dtag for dtag in dtags_by_res if datasets[dtag].reflections.resolution().resolution < resolution_cutoff
     ]
     suitable_datasets = {dtag: dataset for dtag, dataset in datasets.items() if dtag in suitable_datasets_list}
-    print(f'\tSuitable datasets for characterising clusters =',suitable_datasets)
+    print('\n\tSuitable datasets for characterising clusters =')
+    dd(suitable_datasets)
     if debug:
         print(f'\tFound datasets suitable for characterising clusters: {suitable_datasets}')
 
