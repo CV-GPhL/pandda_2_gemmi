@@ -376,8 +376,8 @@ class Reflections:
         # Truncate by resolution
         data_truncated = data[data["res"] >= resolution.resolution]
 
-        # Rem,ove res colum
-        data_dropped = data_truncated.drop("res", "columns")
+        # Remove res colum
+        data_dropped = data_truncated.drop(columns="res")
 
         # To numpy
         data_dropped_array = data_dropped.to_numpy()
@@ -449,6 +449,8 @@ class Reflections:
 
         free_flag = None
 
+        # CV-20220303: should we really restrict ourself to some
+        # hard-wired column names here?
         for column in self.reflections.columns:
             if column.label == "FREE":
                 free_flag = "FREE"
@@ -461,9 +463,19 @@ class Reflections:
             raise Exception("No RFree Flag found!")
 
         # Add columns
-        for column in self.reflections.columns:
-            if column.label in ["H", "K", "L", free_flag, structure_factors.f, structure_factors.phi]:
-                new_reflections.add_column(column.label, column.type)
+        expected_columns = ["H", "K", "L", free_flag, structure_factors.f, structure_factors.phi]
+
+        # the below won't work: we can't add columns into empty slots further than the last one
+        #for column in self.reflections.columns:
+        #    # CV-20220303: this assumes an order?!
+        #    if column.label in expected_columns:
+        #        new_reflections.add_column(column.label, column.type, pos=expected_columns.index(column.label))
+        #        print('add column[3]=',column.label)
+
+        for e in expected_columns:
+            for column in self.reflections.columns:
+                if column.label == e:
+                    new_reflections.add_column(column.label, column.type)
 
         # Get data
         data_array = np.array(self.reflections, copy=True)
@@ -473,6 +485,8 @@ class Reflections:
         data.set_index(["H", "K", "L"], inplace=True)
 
         # Truncate by columns
+        # CV-20220303: this assumes an order - so above column
+        # assignment also needs to have that order enforced
         data_indexed = data[[free_flag, structure_factors.f, structure_factors.phi]]
 
         # To numpy
@@ -912,7 +926,7 @@ def smooth(dataset, reference: Reference, structure_factors: StructureFactors):
     truncated_reference = reference.dataset.truncate_reflections(common_reflections)
     truncated_dataset = dataset.truncate_reflections(common_reflections)
 
-    # Refference array
+    # Reference array
     reference_reflections = truncated_reference.reflections.reflections
     reference_reflections_array = np.array(reference_reflections,
                                            copy=True,
@@ -940,6 +954,8 @@ def smooth(dataset, reference: Reference, structure_factors: StructureFactors):
     y = dtag_f_array
 
     r = resolution_array
+
+    print('resolution = ',min(r),max(r))
 
     sample_grid = np.linspace(min(r), max(r), 100)
 
@@ -980,6 +996,7 @@ def smooth(dataset, reference: Reference, structure_factors: StructureFactors):
         rmsds.append(rmsd)
 
     min_scale = scales[np.argmin(rmsds)]
+    print('\tdataset, minimum scale, rmsd = %s %10.4f %10.2f' % (dataset.structure.path,min_scale,min(rmsds)))
 
     # Get the original reflections
     original_reflections = dataset.reflections.reflections
