@@ -450,7 +450,7 @@ class Reflections:
         free_flag = None
 
         # CV-20220303: should we really restrict ourself to some
-        # hard-wired column names here?
+        #              hard-wired column names here?
         for column in self.reflections.columns:
             if column.label == "FREE":
                 free_flag = "FREE"
@@ -465,13 +465,10 @@ class Reflections:
         # Add columns
         expected_columns = ["H", "K", "L", free_flag, structure_factors.f, structure_factors.phi]
 
-        # the below won't work: we can't add columns into empty slots further than the last one
-        #for column in self.reflections.columns:
-        #    # CV-20220303: this assumes an order?!
-        #    if column.label in expected_columns:
-        #        new_reflections.add_column(column.label, column.type, pos=expected_columns.index(column.label))
-        #        print('add column[3]=',column.label)
-
+        # CV-20220302: we need to work in the order of expected
+        #              columns here to ensure the data will end up in
+        #              that order as well - irrespective of the order
+        #              in the reflection/MTZ file
         for e in expected_columns:
             for column in self.reflections.columns:
                 if column.label == e:
@@ -486,7 +483,8 @@ class Reflections:
 
         # Truncate by columns
         # CV-20220303: this assumes an order - so above column
-        # assignment also needs to have that order enforced
+        #              assignment also needs to have that order
+        #              enforced
         data_indexed = data[[free_flag, structure_factors.f, structure_factors.phi]]
 
         # To numpy
@@ -673,20 +671,30 @@ class Reference:
     #          raise pandda_exceptions.ExceptionTooFewDatasets()
 
     @staticmethod
-    def from_datasets(datasets: Datasets):
+    def from_datasets(datasets: Datasets, dataset_statistics):
         # Reference.assert_from_datasets(datasets)
+
+        unique_spacegroups, counts = np.unique(dataset_statistics.spacegroups, return_counts=True)
+        modal_spacegroup = unique_spacegroups[np.argmax(counts)]
 
         resolutions: typing.Dict[Dtag, Resolution] = {}
         for dtag in datasets:
             resolutions[dtag] = datasets[dtag].reflections.resolution()
 
-        min_resolution_dtag = min(
-            resolutions,
-            key=lambda dtag: resolutions[dtag].to_float(),
-        )
+        # min_resolution_dtag = min(
+        #     resolutions,
+        #     key=lambda dtag: resolutions[dtag].to_float(),
+        # )
 
-        min_resolution_structure = datasets[min_resolution_dtag].structure
-        min_resolution_reflections = datasets[min_resolution_dtag].reflections
+        for dtag in sorted(resolutions, key = lambda x: resolutions[x].to_float()):
+            dataset = datasets[dtag]
+            dataset_spacegroup = dataset.reflections.reflections.spacegroup.hm
+            if dataset_spacegroup == modal_spacegroup:
+                min_resolution_dtag = dtag
+                break
+
+        # min_resolution_structure = datasets[min_resolution_dtag].structure
+        # min_resolution_reflections = datasets[min_resolution_dtag].reflections
 
         return Reference(min_resolution_dtag,
                          datasets[min_resolution_dtag]
