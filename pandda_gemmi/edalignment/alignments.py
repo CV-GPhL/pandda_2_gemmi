@@ -12,6 +12,7 @@ from pandda_gemmi.pandda_exceptions import *
 from pandda_gemmi.common import Dtag
 from pandda_gemmi.dataset import Dataset, ResidueID, Reference, Datasets
 
+from scipy.spatial.transform import Rotation as R
 
 @dataclasses.dataclass()
 class Transform:
@@ -154,13 +155,12 @@ class Transform:
         de_meaned_ref = reference_selection - mean_ref
 
         rotation, rmsd = scipy.spatial.transform.Rotation.align_vectors(de_meaned, de_meaned_ref)
-        print('   RMSD =',rmsd)
 
         com_reference = mean_ref
 
         com_moving = mean
 
-        return Transform.from_translation_rotation(vec, rotation, com_reference, com_moving)
+        return rmsd, Transform.from_translation_rotation(vec, rotation, com_reference, com_moving)
 
     # @staticmethod
     # def from_finish_residues(previous_res, current_res, previous_ref, current_ref):
@@ -249,7 +249,7 @@ class Alignment:
     def from_dataset(reference: Reference, dataset: Dataset, marker_atom_search_radius=10.0):
         # CV: 10A search radius? That seems excessive ...
 
-        print(' reference, dataset = ', reference.dtag, dataset.dtag)
+        print('\n\treference, dataset = ', reference.dtag.dtag, dataset.structure.path)
         dataset_pos_list = []
         reference_pos_list = []
 
@@ -264,10 +264,10 @@ class Alignment:
 
                 # Get corresponding reses
                 dataset_res_span = dataset.structure[res_id]
-                dataset_res = dataset_res_span[0]
+                dataset_res      = dataset_res_span[0]
 
                 # Get the CAs
-                atom_ref = ref_res["CA"][0]
+                atom_ref     = ref_res["CA"][0]
                 atom_dataset = dataset_res["CA"][0]
 
                 # Get the shared atoms
@@ -278,7 +278,7 @@ class Alignment:
                 print(f"WARNING: An exception occured in matching residues for alignment at residue id: {res_id}: {e}")
                 continue
 
-        dataset_atom_array = np.array(dataset_pos_list)
+        dataset_atom_array   = np.array(dataset_pos_list)
         reference_atom_array = np.array(reference_pos_list)
 
         if (reference_atom_array.shape[0] == 0) or (dataset_atom_array.shape[0] == 0):
@@ -295,6 +295,7 @@ class Alignment:
                                                )
 
         transforms = {}
+        rmsds = {}
 
         # Start searching
         for res_id in reference.dataset.structure.protein_residue_ids():
@@ -324,13 +325,12 @@ class Alignment:
                 marker_atom_search_radius,
             )
             reference_selection = reference_atom_array[reference_indexes]
-            dataset_selection = dataset_atom_array[reference_indexes]
+            dataset_selection   =   dataset_atom_array[reference_indexes]
 
             if dataset_selection.shape[0] == 0:
                 raise ExceptionUnmatchedAlignmentMarker(res_id)
 
-            print(' res_id =',res_id)
-            transforms[res_id] = Transform.from_atoms(
+            rmsds[res_id], transforms[res_id] = Transform.from_atoms(
                 dataset_selection,
                 reference_selection,
                 # com_dataset=[dataset_ca_pos.x, dataset_ca_pos.y, dataset_ca_pos.z],
@@ -339,6 +339,14 @@ class Alignment:
                 com_reference=np.mean(reference_selection, axis=0),
 
             )
+            t = transforms[res_id]
+            rot = R.from_matrix(t.transform.mat)
+            rotvec = rot.as_rotvec(degrees=True)
+            rotang = np.linalg.norm(rotvec)
+            rotvec = rotvec / rotang
+            tra = t.transform.vec.tolist()
+            cen = t.com_moving - t.com_reference
+            print('\t\trmsd for residue %s|%s = %.4f with rotation axis = (%.5f,%.5f,%.5f) with angle %.5f and translation=(%.5f,%.5f,%.5f) and centre-shift=(%.5f,%.5f,%.5f)' % (res_id.chain,res_id.insertion,rmsds[res_id],rotvec[0],rotvec[1],rotvec[2],rotang,tra[0],tra[1],tra[2],cen[0],cen[1],cen[2]))
 
         return Alignment(transforms)
 
